@@ -1,10 +1,15 @@
 package de.dskw.java.eventsys;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import example.DebugEvent;
@@ -16,14 +21,14 @@ public class EventSystem implements Runnable {
     public static AtomicInteger num = new AtomicInteger(0);
     
     private int interval;
-    private int threadPoolSize;
     private List<IEventQueueHolder> holders;
     private boolean keepRunning = true;
+    private final ExecutorService executor;
     
     public EventSystem(int threadPoolSize, int interval) {
         holders = new ArrayList<IEventQueueHolder>(Demo.zones);
-        this.threadPoolSize = threadPoolSize;
         this.interval = interval - 100;
+        executor = Executors.newFixedThreadPool(threadPoolSize);
     }
     
     public EventSystem(int threadPoolSize) {
@@ -36,39 +41,47 @@ public class EventSystem implements Runnable {
     
     public void shutdown() {
         keepRunning = false;
+        // wait for the executor to finish
+        executor.shutdown();
     }
     
     @Override
     public void run() {
-        while (keepRunning) {
-            long time = System.currentTimeMillis();
-            ExecutorService executor = Executors.newFixedThreadPool(threadPoolSize);
-            // use an unmodified list to prevent ConcurrentModification exceptions
-            List<IEventQueueHolder> list = Collections.unmodifiableList(holders);
+        // use an unmodified list to prevent ConcurrentModification exceptions
+        List<IEventQueueHolder> list = Collections.unmodifiableList(holders);
+
+        Collection<Callable<Void>> runnables = new LinkedList<Callable<Void>>();
+        for (int i = 0; i < list.size(); i++) {
+            IEventQueueHolder h = list.get(i);
+            runnables.add(new EventQueueWorker(h.getQueue()));
+        }
+
+    	while (keepRunning) {
+            long time = System.nanoTime();
             
-            for (int i = 0; i < list.size(); i++) {
-                IEventQueueHolder h = list.get(i);
-                executor.execute(new EventQueueWorker(h.getQueue()));
+            try {
+            	List<Future<Void>> futures = executor.invokeAll(runnables);
+            	for (Future<Void> future : futures)
+            	{
+            		future.get();
+            	}
+            } catch (Exception e) {
+            	e.printStackTrace();
             }
-            
-            // wait for the executor to finish
-            executor.shutdown();
-            
-            while (!executor.isTerminated()) {}
             
             if (DebugEvent.num.get() >= Demo.zones * Demo.events) {
                 shutdown();
                 return;
             }
             
-            time = System.currentTimeMillis() - time;
-            System.out.println((num.getAndSet(0)/1000) + "k events in " + time + "ms");
-            if (time < interval) {
+            time = System.nanoTime() - time;
+            System.out.println((num.getAndSet(0)/1000) + "k events in " + TimeUnit.NANOSECONDS.toMillis(time) + "ms");
+            //if (time < interval) {
                 try {
-                    Thread.sleep(interval - time);
+                    Thread.sleep(1L);
                 } catch (InterruptedException e) {
                 }
-            }
+            //}
         }
     }
 

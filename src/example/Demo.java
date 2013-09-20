@@ -5,10 +5,10 @@ import java.security.SecureRandom;
 
 public class Demo {
 
-    public static final int threads = 1;
-    public static final int zones = 3000 * 4;
-    public static final int events = 4000;
-    public static final int eventDelay = 60 * 5; // in seconds
+    public static final int threads = 4;
+    public static final int zones = 5000 * 2;
+    public static final int events = 3000;
+    public static final int eventDelay = 60 * 2; // in seconds
     public static SecureRandom rand = new SecureRandom();
     
     /**

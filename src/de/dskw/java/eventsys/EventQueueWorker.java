@@ -1,10 +1,11 @@
 package de.dskw.java.eventsys;
 
 import java.util.AbstractQueue;
+import java.util.concurrent.Callable;
 
 
 
-public class EventQueueWorker implements Runnable {
+public class EventQueueWorker implements Callable<Void> {
 
     private AbstractQueue<Event> queue;
     
@@ -13,7 +14,7 @@ public class EventQueueWorker implements Runnable {
     }
     
     @Override
-    public void run() {
+    public Void call() {
         while (!queue.isEmpty() && queue.peek().isDue()) {
             try {
                 queue.poll().execute();
@@ -22,6 +23,7 @@ public class EventQueueWorker implements Runnable {
                 e.printStackTrace();
             }
         }
+        return null;
     }
 
 }
